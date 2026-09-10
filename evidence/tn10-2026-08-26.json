@@ -1,0 +1,77 @@
+{
+  "recorded_on": "2026-08-26",
+  "network": "testnet-10",
+  "scope": "SYNTHETIC MECHANICS TEST ONLY — NOT KRC-20 STATE EVIDENCE",
+  "source": {
+    "network": "testnet-10",
+    "ticker": "TN10POC",
+    "krc_deploy_id": "2cc1c0b1bd13bd36c30bdab7645902620bd870095758e7dae9e1f6950c1ddd4f",
+    "checkpoint": {
+      "daa_score": "553950758",
+      "muhash": "7502a65006d7d9d8f423d5bc573522a9c9e01efaea70358bc6c2fc39534f93c0",
+      "indexer": "synthetic-tn10-mechanics-only/no-krc-indexer"
+    },
+    "holders": [
+      {
+        "address": "kaspatest:qpssh6nkmd6s2xqadh5squ2gezf27ysc8sxx5vyy4sgy7d6agw6vysayrsewf",
+        "amount": "1000000"
+      }
+    ]
+  },
+  "manifest_json": "{\n  \"codec\": \"kasmelt-snapshot-v1/blake2b256/full-claim\",\n  \"network\": \"testnet-10\",\n  \"ticker\": \"TN10POC\",\n  \"krc_deploy_id\": \"2cc1c0b1bd13bd36c30bdab7645902620bd870095758e7dae9e1f6950c1ddd4f\",\n  \"checkpoint_daa_score\": \"553950758\",\n  \"checkpoint_muhash\": \"7502a65006d7d9d8f423d5bc573522a9c9e01efaea70358bc6c2fc39534f93c0\",\n  \"indexer\": \"synthetic-tn10-mechanics-only/no-krc-indexer\",\n  \"context\": \"32d8802b29f693653b70164b53a8fdc011de1252ef94c06975cf2a1e54337e93\",\n  \"initial_root\": \"3825944810b10bf673d769d22cd752f67b673e69799903aa524f1155fa0afd4a\",\n  \"depth\": 1,\n  \"total\": \"1000000\",\n  \"holders\": [\n    {\n      \"index\": 0,\n      \"address\": \"kaspatest:qpssh6nkmd6s2xqadh5squ2gezf27ysc8sxx5vyy4sgy7d6agw6vysayrsewf\",\n      \"owner_scheme\": 0,\n      \"owner\": \"610bea76db7505181d6de9007148c892af12183c0c6a3084ac104f375d43b4c2\",\n      \"amount\": \"1000000\"\n    }\n  ]\n}",
+  "manifest_commitment": "8d533ed59193e142ce9ba3b367acb6813ee33c3439ca14a91d1ed3958d91e530",
+  "initial_root": "3825944810b10bf673d769d22cd752f67b673e69799903aa524f1155fa0afd4a",
+  "current_root": "c393a33fd78d0104ad83331e73a762fa5e094e89579b7c2d8ff35a2b64abb6de",
+  "reserve_amount": "0",
+  "authority_address": "kaspatest:qptaj92edynfwrjpl5wl44yquuuym59xn4t2se7yyhqqcg0c840kk64wh0vsf",
+  "token_id": "ba12f3cdc6f4d8c0223499ef95312f944556a19c278f6e56ea973852f4019106",
+  "controller_id": "2895f0a618f17970fa1dd8bafb205b0c4f0cc5e9e6083ad4b2d179de19b03a66",
+  "token_program_sha256": "198e052353ae4d88ca304cd796e79a9b7aaaf78dc7549d4ee78c884ffcac41c7",
+  "controller_program_sha256": "fca3083fcff1866da4d1dcde459d4699ecdc5bf0536136c50c18c0b70e6ad2ac",
+  "source_hashes": {
+    "token_contract": "de111d0efbfd14190f84b691b961fdbe3c76bac8428db56a87f93e3d767aaf55",
+    "controller_contract": "8ea817354da388517e8d6ce97bc6d3d384f54e663feacac8c9c031b98ada347a"
+  },
+  "receipts": [
+    {
+      "stage": 1,
+      "name": "token genesis",
+      "transaction_id": "182433bfb39331da6f94ae2e6fc51d847371cfdbcb678fc6e65e637368ef945b",
+      "accepting_daa": 553951220,
+      "observed_virtual_daa": 553951263,
+      "explorer": "https://explorer-tn10.kaspa.org/txs/182433bfb39331da6f94ae2e6fc51d847371cfdbcb678fc6e65e637368ef945b"
+    },
+    {
+      "stage": 2,
+      "name": "controller genesis",
+      "transaction_id": "5006a86a1239624f23b632ed3f78444032ee79db942ad7f4b728250faac636e8",
+      "accepting_daa": 553951550,
+      "observed_virtual_daa": 553951592,
+      "explorer": "https://explorer-tn10.kaspa.org/txs/5006a86a1239624f23b632ed3f78444032ee79db942ad7f4b728250faac636e8"
+    },
+    {
+      "stage": 3,
+      "name": "full-supply reserve handoff",
+      "transaction_id": "0ff8ff1b9a47849ef76bfa28c23310eddd95b7544774c92f792ee34953f6a8bd",
+      "accepting_daa": 553951835,
+      "observed_virtual_daa": 553951872,
+      "explorer": "https://explorer-tn10.kaspa.org/txs/0ff8ff1b9a47849ef76bfa28c23310eddd95b7544774c92f792ee34953f6a8bd"
+    },
+    {
+      "stage": 4,
+      "name": "Merkle claim",
+      "transaction_id": "bf2b54689e8dd09f0270c1d098b7fe4295527f7646fc06815a8c9ac491240503",
+      "accepting_daa": 553952213,
+      "observed_virtual_daa": 553952250,
+      "explorer": "https://explorer-tn10.kaspa.org/txs/bf2b54689e8dd09f0270c1d098b7fe4295527f7646fc06815a8c9ac491240503"
+    },
+    {
+      "stage": 5,
+      "name": "claimed-recipient spend",
+      "transaction_id": "f3b6fbf2cde49c12ee21ad3e23510b1a22499730c0f8e3b4df4799a16843285c",
+      "accepting_daa": 553952511,
+      "observed_virtual_daa": 553952556,
+      "explorer": "https://explorer-tn10.kaspa.org/txs/f3b6fbf2cde49c12ee21ad3e23510b1a22499730c0f8e3b4df4799a16843285c"
+    }
+  ]
+}

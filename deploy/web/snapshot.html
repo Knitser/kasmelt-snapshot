@@ -1,0 +1,2460 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0c0716">
+<meta name="description" content="Understand and test a one-time KRC-20 snapshot migration into covenant-enforced KCC-20 claims.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%239864e7'/%3E%3Ctext x='16' y='23' font-family='ui-monospace,monospace' font-size='19' font-weight='800' text-anchor='middle' fill='%23050309'%3EK%3C/text%3E%3C/svg%3E">
+<title>KRC → KCC Migration Lab · kasmelt</title>
+<script>
+  if (window.location.protocol === "file:") {
+    window.location.replace("http://127.0.0.1:8793/");
+  }
+</script>
+<style>
+  :root {
+    --bg: #0c0716;
+    --bg-deep: #050309;
+    --panel: rgba(20, 13, 34, .9);
+    --panel-strong: #1c1230;
+    --line: #392451;
+    --line-bright: #704ba1;
+    --ink: #faf7ff;
+    --muted: #aea1bf;
+    --faint: #78698b;
+    --purple: #b98aff;
+    --purple-strong: #9864e7;
+    --purple-soft: rgba(185, 138, 255, .12);
+    --green: #77e4b4;
+    --yellow: #f1be73;
+    --red: #ff7d98;
+    --shadow: 0 24px 70px rgba(0, 0, 0, .34);
+    --radius: 16px;
+  }
+
+  * { box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    min-height: 100vh;
+    margin: 0;
+    color: var(--ink);
+    background:
+      radial-gradient(circle at 14% -5%, rgba(153, 91, 232, .24), transparent 32rem),
+      radial-gradient(circle at 95% 12%, rgba(210, 101, 255, .12), transparent 28rem),
+      linear-gradient(180deg, var(--bg) 0%, var(--bg-deep) 100%);
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 15px;
+    line-height: 1.55;
+  }
+
+  body::before {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    content: "";
+    pointer-events: none;
+    opacity: .18;
+    background-image:
+      linear-gradient(rgba(185, 138, 255, .06) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(185, 138, 255, .06) 1px, transparent 1px);
+    background-size: 48px 48px;
+    mask-image: linear-gradient(to bottom, black, transparent 62%);
+  }
+
+  button,
+  textarea { font: inherit; }
+
+  button { -webkit-tap-highlight-color: transparent; }
+
+  .skip-link {
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    z-index: 20;
+    padding: .65rem .9rem;
+    color: var(--bg-deep);
+    background: var(--purple);
+    border-radius: 9px;
+    font-weight: 750;
+    transform: translateY(-160%);
+  }
+
+  .skip-link:focus { transform: translateY(0); }
+
+  .shell {
+    width: min(1180px, calc(100% - 2rem));
+    margin: 0 auto;
+    padding: 1.25rem 0 4rem;
+  }
+
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    min-height: 44px;
+    margin-bottom: 2.75rem;
+  }
+
+  .brand,
+  .eyebrow,
+  .label,
+  .metric-label,
+  .section-kicker,
+  .holder-index {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    text-transform: uppercase;
+    letter-spacing: .1em;
+  }
+
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: .65rem;
+    font-size: .78rem;
+    font-weight: 800;
+  }
+
+  .brand-mark {
+    display: inline-grid;
+    width: 26px;
+    height: 26px;
+    place-items: center;
+    color: var(--bg-deep);
+    background: linear-gradient(135deg, #e2c9ff, var(--purple));
+    border-radius: 8px 3px 8px 3px;
+    box-shadow: 0 0 28px rgba(185, 138, 255, .3);
+  }
+
+  .connection {
+    display: inline-flex;
+    align-items: center;
+    gap: .5rem;
+    color: var(--muted);
+    font-size: .82rem;
+  }
+
+  .connection-dot {
+    width: 8px;
+    height: 8px;
+    background: var(--yellow);
+    border-radius: 50%;
+    box-shadow: 0 0 0 4px rgba(240, 189, 101, .08);
+  }
+
+  .connection.ready .connection-dot {
+    background: var(--green);
+    box-shadow: 0 0 0 4px rgba(102, 225, 157, .09);
+  }
+
+  .connection.error .connection-dot {
+    background: var(--red);
+    box-shadow: 0 0 0 4px rgba(255, 127, 120, .09);
+  }
+
+  .hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    gap: 2rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .eyebrow,
+  .section-kicker {
+    margin: 0 0 .55rem;
+    color: var(--purple);
+    font-size: .72rem;
+    font-weight: 800;
+  }
+
+  h1,
+  h2,
+  h3,
+  p { margin-top: 0; }
+
+  h1 {
+    max-width: 800px;
+    margin-bottom: .65rem;
+    color: var(--ink);
+    background: linear-gradient(105deg, #ffffff 12%, #eee4ff 58%, #c69cff 100%);
+    background-clip: text;
+    -webkit-background-clip: text;
+    font-size: clamp(2.25rem, 6vw, 4.5rem);
+    line-height: .98;
+    letter-spacing: -.06em;
+    -webkit-text-fill-color: transparent;
+    text-wrap: balance;
+  }
+
+  .hero-copy {
+    max-width: 720px;
+    margin-bottom: 0;
+    color: var(--muted);
+    font-size: clamp(1rem, 1.6vw, 1.16rem);
+  }
+
+  .mode-chip {
+    min-width: 170px;
+    padding: .8rem 1rem;
+    color: #d8bcff;
+    background: linear-gradient(135deg, rgba(153, 100, 231, .18), rgba(185, 138, 255, .08));
+    border: 1px solid var(--line-bright);
+    border-radius: 999px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: .75rem;
+    font-weight: 800;
+    text-align: center;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+  }
+
+  .safety-banner {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: .9rem;
+    align-items: start;
+    margin-bottom: 1.5rem;
+    padding: 1rem 1.1rem;
+    color: #e2ceff;
+    background: rgba(92, 53, 145, .22);
+    border: 1px solid var(--line-bright);
+    border-radius: 13px;
+  }
+
+  .safety-icon {
+    display: grid;
+    width: 26px;
+    height: 26px;
+    place-items: center;
+    color: var(--bg-deep);
+    background: var(--purple);
+    border-radius: 50%;
+    font-weight: 900;
+  }
+
+  .safety-banner strong {
+    display: block;
+    margin-bottom: .15rem;
+    color: var(--ink);
+    font-size: .9rem;
+    letter-spacing: .02em;
+  }
+
+  .safety-banner p {
+    margin: 0;
+    color: var(--muted);
+    font-size: .88rem;
+  }
+
+  .model-panel,
+  .claim-lab {
+    position: relative;
+    overflow: hidden;
+    padding: 1.35rem;
+    margin-bottom: 1rem;
+  }
+
+  .model-panel::before {
+    position: absolute;
+    top: -8rem;
+    right: -7rem;
+    width: 20rem;
+    height: 20rem;
+    content: "";
+    pointer-events: none;
+    background: radial-gradient(circle, rgba(185, 138, 255, .14), transparent 66%);
+  }
+
+  .model-header,
+  .claim-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1.5rem;
+    margin-bottom: 1.15rem;
+  }
+
+  .model-header > div:first-child,
+  .claim-header > div:first-child { max-width: 760px; }
+
+  .model-header h2,
+  .claim-header h2 {
+    margin-bottom: .4rem;
+    font-size: clamp(1.35rem, 2.4vw, 2rem);
+    line-height: 1.1;
+    letter-spacing: -.035em;
+  }
+
+  .model-summary,
+  .claim-summary {
+    margin: 0;
+    color: var(--muted);
+    font-size: .94rem;
+  }
+
+  .source-badge {
+    flex: 0 0 auto;
+    padding: .45rem .7rem;
+    color: #d8bcff;
+    background: var(--purple-soft);
+    border: 1px solid var(--line-bright);
+    border-radius: 999px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: .65rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+  }
+
+  .migration-flow {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: .65rem;
+    margin-top: 1.1rem;
+  }
+
+  .flow-step {
+    position: relative;
+    min-height: 170px;
+    padding: .9rem;
+    background: rgba(10, 6, 18, .64);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+  }
+
+  .flow-step:not(:last-child)::after {
+    position: absolute;
+    top: 50%;
+    right: -.57rem;
+    z-index: 2;
+    display: grid;
+    width: 1.15rem;
+    height: 1.15rem;
+    content: "→";
+    place-items: center;
+    color: var(--purple);
+    background: var(--bg-deep);
+    border: 1px solid var(--line);
+    border-radius: 50%;
+    font-size: .72rem;
+    transform: translateY(-50%);
+  }
+
+  .flow-number {
+    display: inline-grid;
+    width: 25px;
+    height: 25px;
+    margin-bottom: .75rem;
+    place-items: center;
+    color: #160b24;
+    background: var(--purple);
+    border-radius: 8px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: .7rem;
+    font-weight: 900;
+  }
+
+  .flow-step h3 {
+    margin-bottom: .32rem;
+    font-size: .88rem;
+  }
+
+  .flow-step p {
+    margin-bottom: .7rem;
+    color: var(--muted);
+    font-size: .76rem;
+    line-height: 1.48;
+  }
+
+  .flow-state {
+    display: block;
+    color: var(--purple);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: .64rem;
+    font-weight: 750;
+    overflow-wrap: anywhere;
+  }
+
+  .plain-thesis {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: .8rem;
+    align-items: start;
+    margin-top: 1rem;
+    padding: .9rem 1rem;
+    background: linear-gradient(135deg, rgba(99, 57, 155, .2), rgba(19, 12, 32, .35));
+    border: 1px solid rgba(152, 100, 231, .46);
+    border-radius: 12px;
+  }
+
+  .plain-thesis strong {
+    color: #e3ccff;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: .67rem;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+  }
+
+  .plain-thesis p {
+    margin: 0;
+    color: #ded4e9;
+    font-size: .86rem;
+  }
+
+  .trust-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem;
+    margin: 1rem 0;
+  }
+
+  .trust-card {
+    min-height: 185px;
+    padding: 1.05rem;
+  }
+
+  .trust-stage {
+    display: inline-block;
+    margin-bottom: .75rem;
+    color: var(--purple);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: .65rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+  }
+
+  .trust-card h2 {
+    margin-bottom: .4rem;
+    font-size: 1rem;
+  }
+
+  .trust-card p {
+    margin-bottom: .7rem;
+    color: var(--muted);
+    font-size: .8rem;
+  }
+
+  .trust-verdict {
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+    margin: 0;
+    color: #d9cee6;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: .67rem;
+    font-weight: 750;
+  }
+
+  .trust-verdict::before {
+    width: 7px;
+    height: 7px;
+    content: "";
+    background: var(--yellow);
+    border-radius: 50%;
+    box-shadow: 0 0 0 4px rgba(241, 190, 115, .08);
+  }
+
+  .trust-card.enforced .trust-verdict::before { background: var(--green); }
+  .trust-card.legacy .trust-verdict::before { background: var(--purple); }
+
+  .standards-strip {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    align-items: center;
+    margin: 0 0 1rem;
+    padding: .8rem 1rem;
+    color: var(--muted);
+    background: rgba(12, 7, 21, .62);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    font-size: .77rem;
+  }
+
+  .standards-strip strong { color: var(--ink); }
+
+  .standards-links {
+    display: flex;
+    flex: 0 0 auto;
+    gap: .7rem;
+  }
+
+  .standards-links a {
+    color: #d6b7ff;
+    text-decoration-color: rgba(214, 183, 255, .45);
+    text-underline-offset: 3px;
+  }
+
+  .claim-layout {
+    display: grid;
+    grid-template-columns: minmax(250px, .72fr) minmax(0, 1.28fr);
+    gap: 1rem;
+  }
+
+  .claim-picker,
+  .claim-preview {
+    padding: 1rem;
+    background: rgba(10, 6, 18, .64);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+  }
+
+  select {
+    display: block;
+    width: 100%;
+    min-height: 44px;
+    margin-top: .45rem;
+    padding: .65rem 2.3rem .65rem .75rem;
+    color: var(--ink);
+    background: #0b0613;
+    border: 1px solid var(--line-bright);
+    border-radius: 9px;
+    outline: none;
+    font: inherit;
+    font-size: .8rem;
+  }
+
+  select:focus {
+    border-color: var(--purple-strong);
+    box-shadow: 0 0 0 3px rgba(185, 138, 255, .14);
+  }
+
+  .picker-help {
+    margin: .65rem 0 0;
+    color: var(--faint);
+    font-size: .72rem;
+  }
+
+  .claim-preview {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 1rem;
+    align-items: center;
+  }
+
+  .claim-preview.empty-preview { grid-template-columns: 1fr; }
+
+  .claim-preview .label { color: var(--faint); font-size: .64rem; }
+
+  .claim-wallet {
+    display: block;
+    margin: .25rem 0 .8rem;
+    color: #dfd2ed;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: .72rem;
+    overflow-wrap: anywhere;
+  }
+
+  .claim-balance {
+    display: block;
+    margin-bottom: .25rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: clamp(1.35rem, 3vw, 2rem);
+    line-height: 1;
+  }
+
+  .claim-explainer {
+    margin: 0;
+    color: var(--muted);
+    font-size: .76rem;
+  }
+
+  .claim-action {
+    display: flex;
+    min-width: 160px;
+    flex-direction: column;
+    gap: .55rem;
+    align-items: stretch;
+  }
+
+  .claim-action-note {
+    color: var(--faint);
+    font-size: .66rem;
+    text-align: center;
+  }
+
+  .claim-status {
+    margin: .7rem 0 0;
+    text-align: right;
+  }
+
+  .evidence-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .6rem;
+  }
+
+  .evidence-card {
+    min-width: 0;
+    padding: .72rem .78rem;
+    background: rgba(10, 6, 18, .62);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+  }
+
+  .evidence-card .label {
+    display: block;
+    margin-bottom: .22rem;
+    color: var(--faint);
+    font-size: .6rem;
+  }
+
+  .evidence-card strong,
+  .evidence-card code {
+    display: block;
+    color: #ded2ec;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: .72rem;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+  }
+
+  .evidence-card.warning {
+    background: rgba(93, 63, 21, .13);
+    border-color: rgba(241, 190, 115, .38);
+  }
+
+  .evidence-card.warning strong { color: var(--yellow); }
+
+  .evidence-actions {
+    display: flex;
+    gap: .75rem;
+    align-items: center;
+    margin-top: .75rem;
+  }
+
+  .evidence-actions span {
+    color: var(--faint);
+    font-size: .69rem;
+  }
+
+  .raw-source,
+  .technical-disclosure,
+  .engine-statements {
+    margin-top: .75rem;
+    border: 1px solid var(--line);
+    border-radius: 11px;
+  }
+
+  .raw-source summary,
+  .technical-disclosure summary,
+  .engine-statements summary {
+    padding: .78rem .9rem;
+    color: #d8c9e8;
+    cursor: pointer;
+    font-size: .76rem;
+    font-weight: 750;
+  }
+
+  .raw-source summary:hover,
+  .technical-disclosure summary:hover,
+  .engine-statements summary:hover { color: var(--purple); }
+
+  .raw-source[open] summary,
+  .technical-disclosure[open] summary,
+  .engine-statements[open] summary {
+    border-bottom: 1px solid var(--line);
+  }
+
+  .raw-source-body { padding: .9rem; }
+
+  .reserve-note {
+    padding: .9rem;
+    color: #ded3e9;
+    background: linear-gradient(135deg, rgba(100, 58, 157, .18), rgba(10, 6, 18, .4));
+    border: 1px solid rgba(152, 100, 231, .38);
+    border-radius: 11px;
+  }
+
+  .reserve-note strong {
+    display: block;
+    margin-bottom: .3rem;
+    color: #e4ceff;
+    font-size: .82rem;
+  }
+
+  .reserve-note p {
+    margin: 0;
+    color: var(--muted);
+    font-size: .76rem;
+  }
+
+  .handoff-warning {
+    margin-top: .7rem;
+    padding: .72rem .78rem;
+    color: #e4c8a1;
+    background: rgba(93, 63, 21, .12);
+    border: 1px solid rgba(241, 190, 115, .3);
+    border-radius: 10px;
+    font-size: .72rem;
+    line-height: 1.55;
+  }
+
+  .handoff-warning strong {
+    display: inline;
+    color: var(--yellow);
+    font-size: inherit;
+  }
+
+  .technical-disclosure .identity-grid { padding: .9rem; }
+
+  .table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--line);
+    border-radius: 11px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: .78rem;
+  }
+
+  th,
+  td {
+    padding: .8rem .85rem;
+    text-align: left;
+    vertical-align: top;
+    border-bottom: 1px solid var(--line);
+  }
+
+  th {
+    color: var(--faint);
+    background: rgba(10, 6, 18, .66);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: .62rem;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+  }
+
+  td { color: var(--muted); }
+  td:first-child { color: var(--ink); font-weight: 700; }
+  tr:last-child td { border-bottom: 0; }
+
+  .evidence-status {
+    display: inline-flex;
+    padding: .2rem .48rem;
+    border: 1px solid currentColor;
+    border-radius: 999px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: .61rem;
+    font-weight: 800;
+    white-space: nowrap;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+  }
+
+  .evidence-status.proven { color: var(--green); background: rgba(119, 228, 180, .07); }
+  .evidence-status.missing { color: var(--yellow); background: rgba(241, 190, 115, .07); }
+  .evidence-status.draft { color: var(--red); background: rgba(255, 125, 152, .07); }
+  .evidence-status.social { color: var(--purple); background: var(--purple-soft); }
+
+  .evidence-statuses {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: .45rem;
+  }
+
+  .engine-statements { margin-top: 1rem; }
+
+  .engine-statements .truth-grid {
+    gap: 0;
+    margin-top: 0;
+  }
+
+  .engine-statements .truth {
+    background: rgba(10, 6, 18, .45);
+    border-right: 1px solid var(--line);
+    border-radius: 0;
+  }
+
+  .engine-statements .truth:last-child { border-right: 0; }
+
+  .next-milestone {
+    overflow: hidden;
+    margin-top: 1rem;
+    background:
+      radial-gradient(circle at 100% 0%, rgba(166, 106, 240, .18), transparent 34%),
+      var(--panel);
+  }
+
+  .tn10-chain {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: .65rem;
+    margin: 1rem 0 0;
+    padding: 0;
+    list-style: none;
+    counter-reset: tn10-step;
+  }
+
+  .tn10-chain li {
+    position: relative;
+    min-height: 132px;
+    padding: 2.55rem .82rem .82rem;
+    color: var(--muted);
+    background: rgba(10, 6, 18, .58);
+    border: 1px solid var(--line);
+    border-radius: 11px;
+    counter-increment: tn10-step;
+    font-size: .74rem;
+    line-height: 1.5;
+  }
+
+  .tn10-chain li::before {
+    position: absolute;
+    top: .78rem;
+    left: .82rem;
+    content: "TX " counter(tn10-step);
+    color: var(--purple);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: .62rem;
+    font-weight: 900;
+    letter-spacing: .08em;
+  }
+
+  .tn10-chain strong {
+    display: block;
+    margin-bottom: .25rem;
+    color: var(--ink);
+    font-size: .78rem;
+  }
+
+  .tn10-chain li.confirmed {
+    background: linear-gradient(145deg, rgba(119, 228, 180, .08), rgba(10, 6, 18, .58));
+    border-color: rgba(119, 228, 180, .48);
+    box-shadow: inset 0 2px rgba(119, 228, 180, .22);
+  }
+
+  .tn10-chain li.confirmed::before { color: var(--green); }
+
+  .tn10-link {
+    display: block;
+    margin-top: .6rem;
+    color: #cdaeff;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: .62rem;
+    font-weight: 750;
+    overflow-wrap: anywhere;
+    text-decoration-color: rgba(205, 174, 255, .42);
+    text-underline-offset: 3px;
+  }
+
+  .milestone-warning {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: .65rem;
+    align-items: start;
+    margin-top: .75rem;
+    padding: .8rem .9rem;
+    color: var(--muted);
+    background: rgba(93, 63, 21, .1);
+    border: 1px solid rgba(241, 190, 115, .28);
+    border-radius: 11px;
+    font-size: .76rem;
+  }
+
+  .milestone-warning strong { color: var(--yellow); }
+
+  .receipt-details {
+    margin-top: .5rem;
+    color: var(--faint);
+    font-size: .72rem;
+  }
+
+  .receipt-details summary {
+    width: fit-content;
+    color: #cdb6e7;
+    cursor: pointer;
+    font-weight: 700;
+  }
+
+  .receipt-details .event-detail { margin-top: .45rem; }
+
+  .editor > .status-message { margin: .55rem 0 0; }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    backdrop-filter: blur(14px);
+  }
+
+  .workspace {
+    display: grid;
+    grid-template-columns: minmax(0, 1.14fr) minmax(290px, .86fr);
+    overflow: hidden;
+    margin-bottom: 1rem;
+  }
+
+  .editor,
+  .identity { padding: 1.25rem; }
+
+  .identity {
+    background: rgba(8, 4, 15, .44);
+    border-left: 1px solid var(--line);
+  }
+
+  .panel-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: .9rem;
+  }
+
+  .panel-heading h2,
+  .section-heading h2 {
+    margin-bottom: .25rem;
+    font-size: 1.05rem;
+    letter-spacing: -.02em;
+  }
+
+  .hint,
+  .section-heading p {
+    margin-bottom: 0;
+    color: var(--muted);
+    font-size: .84rem;
+  }
+
+  label.label {
+    display: inline-block;
+    margin-bottom: .45rem;
+    color: var(--muted);
+    font-size: .68rem;
+    font-weight: 750;
+  }
+
+  textarea {
+    display: block;
+    width: 100%;
+    min-height: 260px;
+    resize: vertical;
+    padding: 1rem;
+    color: #efe7fa;
+    caret-color: var(--purple);
+    background: #09050f;
+    border: 1px solid var(--line);
+    border-radius: 11px;
+    outline: none;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: .78rem;
+    line-height: 1.65;
+    tab-size: 2;
+  }
+
+  textarea:focus {
+    border-color: var(--purple-strong);
+    box-shadow: 0 0 0 3px rgba(185, 138, 255, .14);
+  }
+
+  .actions {
+    display: flex;
+    align-items: center;
+    gap: .65rem;
+    flex-wrap: wrap;
+    margin-top: .85rem;
+  }
+
+  .button {
+    min-height: 42px;
+    padding: .65rem 1rem;
+    color: #120921;
+    background: var(--purple);
+    border: 1px solid var(--purple);
+    border-radius: 9px;
+    cursor: pointer;
+    font-weight: 800;
+    transition: transform .16s ease, background .16s ease, border-color .16s ease, opacity .16s ease;
+  }
+
+  .button:hover:not(:disabled) {
+    background: #d1b0ff;
+    border-color: #d1b0ff;
+    transform: translateY(-1px);
+  }
+
+  .button.secondary {
+    color: var(--ink);
+    background: transparent;
+    border-color: var(--line-bright);
+  }
+
+  .button.secondary:hover:not(:disabled) {
+    color: #d4b6ff;
+    background: var(--purple-soft);
+    border-color: var(--purple-strong);
+  }
+
+  .button.small {
+    min-height: 36px;
+    padding: .48rem .8rem;
+    font-size: .8rem;
+  }
+
+  .button:disabled {
+    cursor: not-allowed;
+    opacity: .4;
+  }
+
+  :focus-visible {
+    outline: 3px solid rgba(185, 138, 255, .44);
+    outline-offset: 3px;
+  }
+
+  .status-message {
+    flex: 1 1 200px;
+    min-height: 1.4em;
+    margin: 0 0 0 .2rem;
+    color: var(--muted);
+    font-size: .8rem;
+  }
+
+  .status-message.error { color: var(--red); }
+  .status-message.success { color: var(--green); }
+
+  .identity-grid {
+    display: grid;
+    gap: .85rem;
+  }
+
+  .identity-row {
+    padding-bottom: .8rem;
+    border-bottom: 1px solid rgba(112, 75, 161, .36);
+  }
+
+  .identity-row:last-child {
+    padding-bottom: 0;
+    border-bottom: 0;
+  }
+
+  .identity-row .label,
+  .root-block .label {
+    display: block;
+    margin-bottom: .25rem;
+    color: var(--faint);
+    font-size: .65rem;
+  }
+
+  .identity-value,
+  .root-value,
+  .address,
+  .event-root {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    overflow-wrap: anywhere;
+  }
+
+  .identity-value {
+    color: #ded2ec;
+    font-size: .79rem;
+  }
+
+  .abi-pill,
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    padding: .18rem .55rem;
+    border: 1px solid var(--line-bright);
+    border-radius: 999px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: .67rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+  }
+
+  .abi-pill.good,
+  .status-pill.claimed {
+    color: var(--green);
+    background: rgba(102, 225, 157, .08);
+    border-color: rgba(102, 225, 157, .42);
+  }
+
+  .abi-pill.warn {
+    color: var(--yellow);
+    background: rgba(240, 189, 101, .08);
+    border-color: rgba(240, 189, 101, .42);
+  }
+
+  .abi-pill.bad {
+    color: var(--red);
+    background: rgba(255, 127, 120, .08);
+    border-color: rgba(255, 127, 120, .42);
+  }
+
+  .status-pill.open {
+    color: #d7b9ff;
+    background: var(--purple-soft);
+  }
+
+  .status-pill.closed {
+    color: var(--yellow);
+    background: rgba(240, 189, 101, .08);
+    border-color: rgba(240, 189, 101, .42);
+  }
+
+  .metrics {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1rem;
+    margin: 1rem 0;
+  }
+
+  .metric {
+    min-height: 128px;
+    padding: 1rem 1.05rem;
+    background: linear-gradient(145deg, rgba(38, 23, 61, .9), rgba(13, 8, 23, .9));
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    box-shadow: 0 12px 35px rgba(0, 0, 0, .16);
+  }
+
+  .metric-label {
+    display: block;
+    margin-bottom: .65rem;
+    color: var(--muted);
+    font-size: .64rem;
+    font-weight: 750;
+  }
+
+  .metric-value {
+    display: block;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: clamp(1.25rem, 2.6vw, 1.8rem);
+    font-weight: 760;
+    letter-spacing: -.04em;
+    overflow-wrap: anywhere;
+  }
+
+  .metric-note {
+    display: block;
+    margin-top: .35rem;
+    color: var(--faint);
+    font-size: .74rem;
+  }
+
+  .roots {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 1px;
+    overflow: hidden;
+    margin-bottom: 1rem;
+    background: var(--line);
+  }
+
+  .root-block {
+    min-width: 0;
+    padding: 1rem 1.1rem;
+    background: var(--panel);
+  }
+
+  .root-value {
+    display: block;
+    color: #dfd3ed;
+    font-size: .78rem;
+  }
+
+  .root-block.current {
+    box-shadow: inset 3px 0 var(--purple-strong);
+  }
+
+  .progress-wrap {
+    grid-column: 1 / -1;
+    padding: .8rem 1.1rem 1rem;
+    background: var(--panel);
+  }
+
+  .progress-copy {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: .45rem;
+    color: var(--muted);
+    font-size: .74rem;
+  }
+
+  .progress {
+    height: 7px;
+    overflow: hidden;
+    background: #0d0717;
+    border: 1px solid rgba(112, 75, 161, .42);
+    border-radius: 999px;
+  }
+
+  .progress-bar {
+    width: 0;
+    height: 100%;
+    background: linear-gradient(90deg, var(--purple-strong), #d4b2ff);
+    border-radius: inherit;
+    transition: width .3s ease;
+  }
+
+  .section {
+    padding: 1.25rem;
+    margin-top: 1rem;
+  }
+
+  .section-heading {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .holder-list,
+  .event-list,
+  .fact-list {
+    padding: 0;
+    margin: 0;
+    list-style: none;
+  }
+
+  .holder-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .75rem;
+  }
+
+  .holder {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: .9rem;
+    padding: .95rem;
+    background: rgba(11, 6, 19, .72);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+  }
+
+  .holder.claimed { opacity: .7; }
+
+  .holder-index {
+    margin-bottom: .4rem;
+    color: var(--faint);
+    font-size: .62rem;
+    font-weight: 800;
+  }
+
+  .address {
+    display: block;
+    margin-bottom: .6rem;
+    color: #ddd1eb;
+    font-size: .76rem;
+  }
+
+  .holder-meta {
+    display: flex;
+    align-items: center;
+    gap: .5rem .75rem;
+    flex-wrap: wrap;
+  }
+
+  .amount {
+    color: var(--ink);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: .95rem;
+    font-weight: 750;
+  }
+
+  .scheme {
+    color: var(--muted);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: .69rem;
+  }
+
+  .holder-action {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: .8rem;
+  }
+
+  .empty {
+    padding: 2.25rem 1rem;
+    color: var(--muted);
+    background: rgba(11, 6, 19, .52);
+    border: 1px dashed var(--line-bright);
+    border-radius: 12px;
+    text-align: center;
+  }
+
+  .event-list {
+    display: grid;
+    gap: .7rem;
+  }
+
+  .event {
+    display: grid;
+    grid-template-columns: 12px minmax(0, 1fr) auto;
+    gap: .8rem;
+    padding: .9rem 0;
+    border-bottom: 1px solid rgba(112, 75, 161, .32);
+  }
+
+  .event:last-child { border-bottom: 0; }
+
+  .event-dot {
+    width: 10px;
+    height: 10px;
+    margin-top: .38rem;
+    background: var(--purple-strong);
+    border: 2px solid var(--panel-strong);
+    border-radius: 50%;
+    box-shadow: 0 0 0 2px var(--line-bright);
+  }
+
+  .event-title {
+    margin: 0 0 .15rem;
+    font-size: .91rem;
+  }
+
+  .event-detail {
+    margin: 0;
+    color: var(--muted);
+    font-size: .8rem;
+  }
+
+  .event-roots {
+    display: grid;
+    gap: .18rem;
+    margin-top: .5rem;
+  }
+
+  .event-root {
+    color: var(--faint);
+    font-size: .69rem;
+  }
+
+  .event-units {
+    color: var(--purple);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: .72rem;
+    white-space: nowrap;
+  }
+
+  .truth-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+    margin-top: 1rem;
+  }
+
+  .truth {
+    padding: 1.2rem;
+  }
+
+  .truth.proves { border-color: rgba(102, 225, 157, .33); }
+  .truth.limits { border-color: rgba(240, 189, 101, .3); }
+
+  .truth h2 {
+    margin-bottom: .75rem;
+    font-size: 1rem;
+  }
+
+  .truth.proves h2 { color: var(--green); }
+  .truth.limits h2 { color: var(--yellow); }
+
+  .fact-list {
+    display: grid;
+    gap: .65rem;
+  }
+
+  .fact {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: .65rem;
+    color: #d2c6df;
+    font-size: .84rem;
+  }
+
+  .fact-mark {
+    color: var(--green);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-weight: 900;
+  }
+
+  .limits .fact-mark { color: var(--yellow); }
+
+  footer {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-top: 2.25rem;
+    padding-top: 1rem;
+    color: var(--faint);
+    border-top: 1px solid var(--line);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: .68rem;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+  }
+
+  @media (max-width: 900px) {
+    .migration-flow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .flow-step:not(:last-child)::after { display: none; }
+    .trust-grid { grid-template-columns: 1fr; }
+    .claim-layout { grid-template-columns: 1fr; }
+    .workspace { grid-template-columns: 1fr; }
+    .identity { border-top: 1px solid var(--line); border-left: 0; }
+    .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .holder-list { grid-template-columns: 1fr; }
+    .tn10-chain { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+
+  @media (max-width: 640px) {
+    .shell { width: min(100% - 1rem, 1180px); padding-top: .75rem; }
+    .topbar { margin-bottom: 1.8rem; }
+    .connection-text { display: none; }
+    .hero { grid-template-columns: 1fr; gap: 1rem; }
+    .mode-chip { width: fit-content; }
+    .model-panel, .claim-lab { padding: 1rem; }
+    .model-header, .claim-header { align-items: flex-start; flex-direction: column; gap: .8rem; }
+    .migration-flow { grid-template-columns: 1fr; }
+    .plain-thesis { grid-template-columns: 1fr; }
+    .standards-strip { align-items: flex-start; flex-direction: column; }
+    .evidence-grid { grid-template-columns: 1fr; }
+    .evidence-actions { align-items: flex-start; flex-direction: column; }
+    .claim-preview { grid-template-columns: 1fr; }
+    .claim-action { min-width: 0; }
+    .workspace, .panel, .metric { border-radius: 12px; }
+    .editor, .identity, .section { padding: 1rem; }
+    .metrics { gap: .5rem; }
+    .metric { min-height: 110px; padding: .85rem; }
+    .roots, .truth-grid { grid-template-columns: 1fr; }
+    .root-block.current { box-shadow: inset 0 3px var(--purple-strong); }
+    .section-heading { align-items: flex-start; flex-direction: column; }
+    .holder { grid-template-columns: 1fr; }
+    .holder-action { align-items: flex-start; flex-direction: row; }
+    .event { grid-template-columns: 12px minmax(0, 1fr); }
+    .event-units { grid-column: 2; }
+    .engine-statements .truth { border-right: 0; border-bottom: 1px solid var(--line); }
+    .engine-statements .truth:last-child { border-bottom: 0; }
+    .tn10-chain { grid-template-columns: 1fr; }
+    .tn10-chain li { min-height: 0; }
+    .milestone-warning { grid-template-columns: 1fr; }
+    table { min-width: 680px; }
+    footer { flex-direction: column; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; }
+  }
+  .proof-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .55rem;
+    margin: 1.15rem 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .proof-strip li {
+    display: inline-flex;
+    align-items: baseline;
+    gap: .45rem;
+    padding: .5rem .85rem;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+  }
+
+  .proof-strip strong {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 1rem;
+    color: var(--green);
+  }
+
+  .proof-strip span { color: var(--muted); font-size: .8rem; }
+
+  .proof-strip-note { margin: .55rem 0 0; color: var(--faint); font-size: .78rem; }
+
+  .plain-guide {
+    border: 1px solid rgba(152, 100, 231, .38);
+    border-radius: var(--radius);
+    background: linear-gradient(135deg, rgba(100, 58, 157, .16), var(--panel));
+    box-shadow: var(--shadow);
+  }
+
+  .plain-guide summary {
+    padding: .95rem 1.1rem;
+    color: var(--ink);
+    cursor: pointer;
+    font-size: .86rem;
+    font-weight: 750;
+  }
+
+  .plain-guide summary:hover { color: var(--purple); }
+
+  .plain-guide[open] summary { border-bottom: 1px solid var(--line); }
+
+  .plain-guide-body { padding: 1rem 1.1rem 1.2rem; display: grid; gap: 1rem; }
+
+  .plain-analogy {
+    color: #ded3e9;
+    font-size: .92rem;
+    line-height: 1.65;
+    margin: 0;
+  }
+
+  .plain-analogy strong { color: var(--green); }
+
+  .plain-steps {
+    margin: 0;
+    padding-left: 1.15rem;
+    color: var(--muted);
+    font-size: .88rem;
+    line-height: 1.6;
+    display: grid;
+    gap: .35rem;
+  }
+
+  .plain-steps strong { color: var(--ink); }
+
+  .glossary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: .6rem .9rem;
+    margin: 0;
+  }
+
+  .glossary-grid > div {
+    border: 1px solid var(--line);
+    border-radius: 11px;
+    padding: .65rem .75rem;
+    background: rgba(10, 6, 18, .4);
+  }
+
+  .glossary-grid dt {
+    color: var(--purple);
+    font-size: .74rem;
+    font-weight: 750;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+  }
+
+  .glossary-grid dd {
+    margin: .25rem 0 0;
+    color: var(--muted);
+    font-size: .83rem;
+    line-height: 1.55;
+  }
+</style>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to KRC → KCC Migration Lab</a>
+
+<div class="shell">
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark" aria-hidden="true">K</span><span>kasmelt / lab</span></div>
+    <div class="connection" id="connection" role="status" aria-live="polite">
+      <span class="connection-dot" aria-hidden="true"></span>
+      <span class="connection-text" id="connection-text">Connecting to local engine</span>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="hero" aria-labelledby="page-title">
+      <div>
+        <p class="eyebrow">One-time migration · not a live bridge</p>
+        <h1 id="page-title">Seal the list once. Kaspa enforces every claim.</h1>
+        <p class="hero-copy">Freeze one agreed holder list, seal its fingerprint into a covenant, then let every included wallet receive its exact KCC-20 balance one time.</p>
+        <ul class="proof-strip" aria-label="Proof at a glance">
+          <li><strong id="proof-tn10">— / 5</strong><span>TN10 transactions confirmed</span></li>
+          <li><strong>0</strong><span>admin keys after handoff</span></li>
+          <li><strong>1</strong><span>trust event: the snapshot</span></li>
+          <li><strong>1×</strong><span>claim per wallet, enforced in script</span></li>
+        </ul>
+        <p class="proof-strip-note">TN10 run used one synthetic holder · KCC-20 is a draft standard</p>
+      </div>
+      <div class="mode-chip" id="mode-chip">Local engine</div>
+    </section>
+
+    <aside class="safety-banner" aria-label="Local simulation notice">
+      <span class="safety-icon" aria-hidden="true">i</span>
+      <div>
+        <strong id="safety-title">LOCAL SIMULATION / NO TN10 CONNECTION</strong>
+        <p id="safety-copy">Real covenant scripts run against fixture transactions in memory. No wallet, node, mempool, DAG, broadcast, or token value is involved.</p>
+      </div>
+    </aside>
+
+    <details class="plain-guide" id="plain-guide">
+      <summary>New here? What this page shows, in plain words</summary>
+      <div class="plain-guide-body">
+        <p class="plain-analogy">
+          Think of it as a <strong>sealed coupon book</strong>. Someone writes down exactly who
+          holds how much of an old token at one agreed moment, and that list is sealed into the
+          new token's identity on the day it is born. After that, <strong>nobody can edit the
+          list</strong>, not even the people who made it: no balance can be changed, no payout
+          redirected, and every line in the book can be redeemed <strong>exactly once</strong>.
+          The rules are enforced by Kaspa itself, the same way it stops a coin being spent twice.
+        </p>
+        <ol class="plain-steps">
+          <li><strong>Watch the five steps</strong> in the panel below to see how the sealed list becomes a claimable token.</li>
+          <li><strong>Try one committed wallet</strong> further down: pick a sample wallet and press claim. It runs the real Kaspa rule engine on this computer, with play money.</li>
+          <li><strong>Check the receipts</strong> at the bottom: the same five steps were also run for real on Kaspa's test network, and each transaction is publicly checkable.</li>
+        </ol>
+        <dl class="glossary-grid" aria-label="Plain-language glossary">
+          <div><dt>Snapshot</dt><dd>The frozen list of who held how much of the old token at one chosen moment.</dd></div>
+          <div><dt>Checkpoint / DAA score</dt><dd>The exact moment on the Kaspa network where the list was frozen. Like a page number in the chain's history.</dd></div>
+          <div><dt>Merkle root</dt><dd>One short fingerprint that summarizes the whole list. Change any single entry and the fingerprint no longer matches.</dd></div>
+          <div><dt>Covenant</dt><dd>A Kaspa coin with rules attached. The network itself refuses any spend that breaks the rules, so no operator is needed.</dd></div>
+          <div><dt>Claim</dt><dd>A holder proving their line in the sealed list and receiving that exact amount of the new token, one time only.</dd></div>
+          <div><dt>Reserve</dt><dd>The full new-token supply, created once and held by the covenant until claims release it piece by piece.</dd></div>
+          <div><dt>Manifest</dt><dd>The full human-readable list that the fingerprint summarizes. Published so anyone can recompute and check it.</dd></div>
+          <div><dt>MuHash</dt><dd>A checksum independent bookkeepers can compute to confirm they all reconstructed the same starting list.</dd></div>
+          <div><dt>TN10</dt><dd>Kaspa's public test network. Real network, worthless test coins, which makes it the honest place to prove mechanics.</dd></div>
+          <div><dt>Simulation vs TN10</dt><dd>Buttons on this page run on this computer only. The receipts section links to the separate run on the public test network.</dd></div>
+        </dl>
+      </div>
+    </details>
+
+    <section class="model-panel panel" id="model" aria-labelledby="model-title">
+      <div class="model-header">
+        <div>
+          <p class="section-kicker">The one-time snapshot model</p>
+          <h2 id="model-title">Trust the launch snapshot once. Trust Kaspa for every claim after.</h2>
+          <p class="model-summary">Independent parties agree on one historical KRC-20 state, its Merkle root is fixed at covenant genesis, and the covenant then enforces the committed claims without a permanent bridge operator.</p>
+        </div>
+        <span class="source-badge">One-time commitment · no admin key</span>
+      </div>
+
+      <div class="migration-flow" aria-label="Five-stage migration flow">
+        <article class="flow-step">
+          <span class="flow-number">1</span>
+          <h3>Choose one checkpoint</h3>
+          <p>Stop the historical replay at one exact KRC-20 DAA score.</p>
+          <span class="flow-state" id="flow-checkpoint">Loading checkpoint…</span>
+        </article>
+        <article class="flow-step">
+          <span class="flow-number">2</span>
+          <h3>Verify every balance</h3>
+          <p>Independent indexers must reproduce the same owners, amounts, and MuHash.</p>
+          <span class="flow-state" id="flow-holders">Supplied · not verified</span>
+        </article>
+        <article class="flow-step">
+          <span class="flow-number">3</span>
+          <h3>Seal the root</h3>
+          <p>The holder set becomes a Merkle root committed into the launch identity.</p>
+          <span class="flow-state" id="flow-root">Waiting for local setup…</span>
+        </article>
+        <article class="flow-step">
+          <span class="flow-number">4</span>
+          <h3>Prove and claim once</h3>
+          <p>A holder supplies a Merkle branch; success retires that entitlement.</p>
+          <span class="flow-state" id="flow-progress">0 / 0 claimed locally</span>
+        </article>
+        <article class="flow-step">
+          <span class="flow-number">5</span>
+          <h3>Receive native token state</h3>
+          <p>The exact amount is released from the covenant-controlled KCC-20 reserve.</p>
+          <span class="flow-state">Reserve split · no recurring mint</span>
+        </article>
+      </div>
+
+      <div class="plain-thesis">
+        <strong>Plain English</strong>
+        <p>People and indexers must get the starting list right. Once that list is sealed, code rather than a committee prevents changing balances, redirecting payouts, or claiming the same entry twice.</p>
+      </div>
+    </section>
+
+    <section class="trust-grid" aria-label="Migration trust boundaries">
+      <article class="trust-card panel">
+        <span class="trust-stage">Before launch · off-chain</span>
+        <h2>Was the KRC snapshot correct?</h2>
+        <p>Independent KRC indexers must replay the same checkpoint and reproduce the complete balance set, MuHash, manifest, and root.</p>
+        <p class="trust-verdict">Not verified by this lab</p>
+      </article>
+      <article class="trust-card enforced panel">
+        <span class="trust-stage">After launch · covenant</span>
+        <h2>Can a balance be claimed twice?</h2>
+        <p>No. The exact owner and amount must match the current root. A successful full claim replaces that leaf and advances the root.</p>
+        <p class="trust-verdict">Enforced by the local engine</p>
+      </article>
+      <article class="trust-card legacy panel">
+        <span class="trust-stage">Legacy side · unchanged</span>
+        <h2>What happens to the old KRC-20?</h2>
+        <p>It still exists and remains transferable. This is an optional claimable fork, not a burn, lock, or mechanism that invalidates KRC-20.</p>
+        <p class="trust-verdict">Economic value is social consensus</p>
+      </article>
+    </section>
+
+    <div class="standards-strip" aria-label="Current standards status">
+      <span><strong>Protocol reality:</strong> KIP-17/KIP-20 covenant primitives are active. KCC-1, KCC-2, and KCC-20 remain Draft conventions, so this artifact is KCC20-shaped rather than final wallet-compatible KCC-20.</span>
+      <span class="standards-links">
+        <a href="https://github.com/kaspanet/kccs" target="_blank" rel="noopener noreferrer">KCC drafts</a>
+        <a href="https://github.com/kaspanet/kccs/blob/main/kcc-0020.md" target="_blank" rel="noopener noreferrer">KCC-20</a>
+      </span>
+    </div>
+
+    <section class="claim-lab panel" id="claim-demo" aria-labelledby="claim-demo-title">
+      <div class="claim-header">
+        <div>
+          <p class="section-kicker">Holder walkthrough</p>
+          <h2 id="claim-demo-title">Run a claim on the real Kaspa engine</h2>
+          <p class="claim-summary">Pick a sample wallet. The local engine will prove its leaf, force the exact committed payout, retire the entitlement, and advance the root. Nothing leaves this computer.</p>
+        </div>
+        <span class="source-badge">Full claim only</span>
+      </div>
+      <div class="claim-layout">
+        <div class="claim-picker">
+          <label class="label" for="holder-select">Wallet from the supplied snapshot</label>
+          <select id="holder-select" aria-describedby="holder-select-help">
+            <option>Loading holders…</option>
+          </select>
+          <p class="picker-help" id="holder-select-help">In production a wallet would discover its own entry and fetch a fresh Merkle proof. Never enter a seed phrase here.</p>
+        </div>
+        <div class="claim-preview empty-preview" id="claim-preview">
+          <p class="claim-explainer">Loading a claimable entry from the local engine…</p>
+        </div>
+      </div>
+      <p class="status-message claim-status" id="claim-status" role="status" aria-live="polite"></p>
+    </section>
+
+    <section class="workspace panel" aria-label="Snapshot workspace">
+      <form class="editor" id="snapshot-form">
+        <div class="panel-heading">
+          <div>
+            <p class="section-kicker">Operator step 1</p>
+            <h2>Candidate snapshot</h2>
+            <p class="hint">Readable launch evidence parsed from the currently committed input.</p>
+          </div>
+        </div>
+        <div class="evidence-grid">
+          <div class="evidence-card"><span class="label">Ticker</span><strong id="evidence-ticker">—</strong></div>
+          <div class="evidence-card"><span class="label">Snapshot address network</span><strong id="evidence-network">—</strong></div>
+          <div class="evidence-card"><span class="label">DAA checkpoint</span><strong id="evidence-checkpoint">—</strong></div>
+          <div class="evidence-card"><span class="label">Supplied MuHash</span><code id="evidence-muhash">—</code></div>
+          <div class="evidence-card"><span class="label">Indexer label</span><strong id="evidence-indexer">—</strong></div>
+          <div class="evidence-card warning"><span class="label">Historical verification</span><strong>Supplied · not KRC-verified</strong></div>
+        </div>
+        <p class="status-message" id="editor-status" role="status" aria-live="polite"></p>
+        <details class="raw-source">
+          <summary>Advanced: inspect or replace the raw snapshot JSON</summary>
+          <div class="raw-source-body">
+            <label class="label" for="source-json">Holder snapshot JSON</label>
+            <textarea id="source-json" name="source-json" spellcheck="false" autocapitalize="off" autocomplete="off" aria-describedby="editor-status">Loading snapshot…</textarea>
+            <div class="actions">
+              <button class="button" id="commit-button" type="submit">Build local commitment</button>
+              <button class="button secondary" id="reset-button" type="button">Restore sample</button>
+            </div>
+          </div>
+        </details>
+      </form>
+
+      <aside class="identity" aria-labelledby="identity-title">
+        <div class="panel-heading">
+          <div>
+            <p class="section-kicker">Operator step 2</p>
+            <h2 id="identity-title">Local commitment</h2>
+            <p class="hint">What becomes fixed before holders can claim.</p>
+          </div>
+        </div>
+        <div class="reserve-note">
+          <strong>Why a reserve instead of minting on every click?</strong>
+          <p>The exact snapshot supply is created once and handed to the controller. Claims only split conserved value from that locked reserve, leaving no recurring mint authority after the handoff.</p>
+          <div class="handoff-warning"><strong>Launch trust boundary:</strong> the deployer remains trusted until the entire supply is visibly handed to the controller in a confirmed transaction. A real launch must publish the token ID, controller ID, exact manifest bytes, and handoff transaction together.</div>
+        </div>
+        <details class="technical-disclosure">
+          <summary>Technical identity and draft ABI status</summary>
+          <div class="identity-grid" id="identity-grid"></div>
+        </details>
+      </aside>
+    </section>
+
+    <section class="metrics" aria-label="Snapshot totals">
+      <article class="metric">
+        <span class="metric-label">Snapshot total</span>
+        <strong class="metric-value" id="metric-total">—</strong>
+        <span class="metric-note">base units committed</span>
+      </article>
+      <article class="metric">
+        <span class="metric-label">Remaining</span>
+        <strong class="metric-value" id="metric-remaining">—</strong>
+        <span class="metric-note">base units claimable</span>
+      </article>
+      <article class="metric">
+        <span class="metric-label">Claims</span>
+        <strong class="metric-value" id="metric-claims">—</strong>
+        <span class="metric-note">leaves retired once</span>
+      </article>
+      <article class="metric">
+        <span class="metric-label">Holders</span>
+        <strong class="metric-value" id="metric-holders">—</strong>
+        <span class="metric-note">snapshot entries</span>
+      </article>
+    </section>
+
+    <section class="roots panel" aria-label="Merkle roots">
+      <div class="root-block">
+        <span class="label">Initial root / genesis commitment</span>
+        <code class="root-value" id="initial-root">—</code>
+      </div>
+      <div class="root-block current">
+        <span class="label">Current root / in-memory claim state</span>
+        <code class="root-value" id="current-root">—</code>
+      </div>
+      <div class="progress-wrap">
+        <div class="progress-copy"><span>Claim progress</span><span id="progress-label">0 / 0</span></div>
+        <div class="progress" role="progressbar" id="progress" aria-label="Claim progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <div class="progress-bar" id="progress-bar"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section panel" aria-labelledby="holders-title">
+      <div class="section-heading">
+        <div>
+          <p class="section-kicker">All supplied entries</p>
+          <h2 id="holders-title">Claimable entries from the snapshot</h2>
+          <p>These balances were accepted as input, not independently checked against KRC history. Each successful local claim retires one leaf.</p>
+        </div>
+      </div>
+      <ul class="holder-list" id="holder-list"></ul>
+    </section>
+
+    <section class="section panel" aria-labelledby="events-title">
+      <div class="section-heading">
+        <div>
+          <p class="section-kicker">Engine evidence</p>
+          <h2 id="events-title">Local execution receipts</h2>
+          <p>Each receipt records a locally accepted fixture transition. The separate real TN10 run used a synthetic one-holder snapshot; its public transaction IDs appear below.</p>
+        </div>
+      </div>
+      <ol class="event-list" id="event-list"></ol>
+    </section>
+
+    <section class="section panel evidence-ladder" id="evidence" aria-labelledby="evidence-title">
+      <div class="section-heading">
+        <div>
+          <p class="section-kicker">Evidence ladder</p>
+          <h2 id="evidence-title">What is real now, and what still has to happen</h2>
+          <p>A passing local script is one layer of evidence, not proof of an entire migration.</p>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Question</th><th>Required evidence</th><th>Status here</th></tr></thead>
+          <tbody>
+            <tr><td>Is the historical KRC holder set correct?</td><td>Independent indexers reproduce the checkpoint, MuHash, and full list.</td><td><span class="evidence-status missing">Not verified</span></td></tr>
+            <tr><td>Are the root and manifest deterministic?</td><td>Canonicalization and hash reproduction.</td><td><span class="evidence-status proven">Proven locally</span></td></tr>
+            <tr><td>Are exact one-time claims enforced?</td><td>Real TxScriptEngine execution plus replay and tamper tests.</td><td><span class="evidence-status proven">Proven locally</span></td></tr>
+            <tr><td>Can Kascov audit the KCC side?</td><td>Acceptance-order indexing, covenant-ID and reveal verification, then exact-program state replay.</td><td><span class="evidence-status draft">Observer ready · pin needed</span></td></tr>
+            <tr><td>Would these transactions enter TN10?</td><td>Wallet funding, RPC submission, mempool admission, confirmation, and a claimant-authorized downstream spend.</td><td><span class="evidence-status missing" id="tn10-evidence-status">Not tested</span></td></tr>
+            <tr><td>Is the token final KCC-compatible?</td><td>Final KCC-1 ABI plus wallet, indexer, and marketplace interoperability.</td><td><span class="evidence-status draft">Draft only</span></td></tr>
+            <tr><td>Did economic value leave KRC-20?</td><td>Community, marketplace, and exchange consensus.</td><td><span class="evidence-status social">Not decided by code</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <details class="engine-statements">
+        <summary>Detailed engine guarantees and limitations</summary>
+        <div class="truth-grid" aria-label="Detailed proof scope">
+          <article class="truth proves">
+            <p class="section-kicker">Proven by this local run</p>
+            <ul class="fact-list" id="guarantee-list"></ul>
+          </article>
+          <article class="truth limits">
+            <p class="section-kicker">Still outside this run</p>
+            <ul class="fact-list limits" id="limit-list"></ul>
+          </article>
+        </div>
+      </details>
+    </section>
+
+    <section class="section panel next-milestone" id="tn10-milestone" aria-labelledby="tn10-title">
+      <div class="section-heading">
+        <div>
+          <p class="section-kicker" id="tn10-kicker">TN10 status</p>
+          <h2 id="tn10-title">Reading TN10 receipts…</h2>
+          <p id="tn10-copy">All five transaction shapes already pass the local Kaspa engine. The smallest honest network proof is this complete public chain of custody.</p>
+        </div>
+        <div class="evidence-statuses" aria-label="Local and TN10 progress">
+          <span class="evidence-status proven">5 / 5 local engine</span>
+          <span class="evidence-status missing" id="tn10-progress">Checking TN10…</span>
+        </div>
+      </div>
+      <ol class="tn10-chain" id="tn10-chain">
+        <li><strong>Token genesis</strong>Create the fixed-supply KCC-shaped token covenant.</li>
+        <li><strong>Controller genesis</strong>Commit the snapshot root and controller state.</li>
+        <li><strong>Reserve handoff</strong>Move the complete supply under covenant control.</li>
+        <li><strong>Merkle claim</strong>Prove one holder leaf and release its exact balance.</li>
+        <li><strong>Recipient spend</strong>Spend or split the claimed native token UTXO.</li>
+      </ol>
+      <div class="milestone-warning">
+        <strong>Still not enough by itself:</strong>
+        <span>Those transactions prove the covenant mechanics on TN10. Kascov can observe their accepted lineage, but it still needs an exact kasmelt program pin for KCC state replay, and it is not a KRC balance indexer. Calling this a real KRC migration also requires at least two independent KRC indexers to reproduce the same checkpoint, MuHash, complete holder list, manifest, and Merkle root.</span>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <span>Local covenant execution only</span>
+    <span id="footer-spec">Spec pin —</span>
+  </footer>
+</div>
+
+<script>
+"use strict";
+
+const byId = id => document.getElementById(id);
+const state = { data: null, busy: false, selectedHolderIndex: null };
+
+function text(value, fallback = "—") {
+  if (value === null || value === undefined || value === "") return fallback;
+  return String(value);
+}
+
+function formatInteger(value) {
+  const raw = text(value, "0");
+  try {
+    return BigInt(raw).toLocaleString("en-US");
+  } catch {
+    return raw;
+  }
+}
+
+function jsonSource(value) {
+  if (typeof value === "string") return value;
+  try {
+    return JSON.stringify(value ?? {}, null, 2);
+  } catch {
+    return "{}";
+  }
+}
+
+function parseCommittedSource(value) {
+  if (value && typeof value === "object") return value;
+  if (typeof value !== "string") return {};
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function shortHash(value) {
+  const raw = text(value, "");
+  return raw.length > 24 ? raw.slice(0, 12) + "…" + raw.slice(-8) : text(value);
+}
+
+function clear(node) {
+  while (node.firstChild) node.removeChild(node.firstChild);
+}
+
+function element(tag, className, content) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (content !== undefined) node.textContent = text(content, "");
+  return node;
+}
+
+function setConnection(kind, message) {
+  const connection = byId("connection");
+  connection.className = "connection" + (kind ? " " + kind : "");
+  byId("connection-text").textContent = message;
+}
+
+function announce(message, kind = "") {
+  const status = byId("editor-status");
+  status.className = "status-message" + (kind ? " " + kind : "");
+  status.textContent = message;
+}
+
+function announceClaim(message, kind = "") {
+  const status = byId("claim-status");
+  status.className = "status-message claim-status" + (kind ? " " + kind : "");
+  status.textContent = message;
+}
+
+function setBusy(busy) {
+  state.busy = busy;
+  byId("commit-button").disabled = busy;
+  byId("reset-button").disabled = busy;
+  byId("holder-select").disabled = busy;
+  for (const button of document.querySelectorAll("[data-claim-index]")) {
+    button.disabled = busy || button.dataset.claimable !== "true";
+  }
+}
+
+function identityRow(label, value, pillKind) {
+  const row = element("div", "identity-row");
+  row.appendChild(element("span", "label", label));
+  if (pillKind) {
+    const pill = element("span", "abi-pill " + pillKind, value);
+    row.appendChild(pill);
+  } else {
+    row.appendChild(element("div", "identity-value", value));
+  }
+  return row;
+}
+
+function abiKind(value) {
+  const v = text(value, "").toLowerCase();
+  if (v.includes("match") || v.includes("compatible") || v.includes("ready") || v.includes("pass")) return "good";
+  if (v.includes("mismatch") || v.includes("incompatible") || v.includes("fail") || v.includes("error")) return "bad";
+  return "warn";
+}
+
+function renderIdentity(data) {
+  const grid = byId("identity-grid");
+  clear(grid);
+  grid.appendChild(identityRow("ABI status", data.abi_status, abiKind(data.abi_status)));
+  grid.appendChild(identityRow("Spec pin", data.spec_pin));
+  grid.appendChild(identityRow("Snapshot address network / ticker", text(data.network) + " / " + text(data.ticker)));
+  const setupPass = data.setup?.token_genesis?.pass
+    && data.setup?.controller_genesis?.pass
+    && data.setup?.reserve_handoff?.pass
+    && data.setup?.token_genesis?.mass?.block_legal
+    && data.setup?.controller_genesis?.mass?.block_legal
+    && data.setup?.reserve_handoff?.mass?.block_legal;
+  const feePass = data.setup?.token_genesis?.mass?.lab_fee_estimate_covered
+    && data.setup?.controller_genesis?.mass?.lab_fee_estimate_covered
+    && data.setup?.reserve_handoff?.mass?.lab_fee_estimate_covered;
+  grid.appendChild(identityRow("Local setup", setupPass && feePass ? "PASS · engine + mass + fee estimate" : "INCOMPLETE", setupPass && feePass ? "good" : "bad"));
+  grid.appendChild(identityRow("Local fixture token ID", data.token_id));
+  grid.appendChild(identityRow("Local fixture controller ID", data.controller_id));
+  grid.appendChild(identityRow("Manifest commitment", data.manifest_commitment));
+  if (data.tn10?.complete) {
+    grid.appendChild(identityRow("Recorded TN10 token ID", data.tn10.token_id));
+    grid.appendChild(identityRow("Recorded TN10 controller ID", data.tn10.controller_id));
+    grid.appendChild(identityRow("Recorded TN10 manifest", data.tn10.manifest_commitment));
+  }
+}
+
+function renderModel(data) {
+  const source = parseCommittedSource(data.source_json);
+  const checkpoint = source.checkpoint && typeof source.checkpoint === "object"
+    ? source.checkpoint
+    : {};
+  byId("flow-checkpoint").textContent = "DAA " + text(checkpoint.daa_score, "not supplied");
+  byId("flow-holders").textContent = formatInteger(data.holder_count) + " supplied · not verified";
+  byId("flow-root").textContent = shortHash(data.initial_root);
+  byId("flow-root").title = text(data.initial_root, "");
+  byId("flow-progress").textContent = formatInteger(data.claimed_count) + " / " + formatInteger(data.holder_count) + " claimed locally";
+}
+
+function renderEvidence(data) {
+  const source = parseCommittedSource(data.source_json);
+  const checkpoint = source.checkpoint && typeof source.checkpoint === "object"
+    ? source.checkpoint
+    : {};
+  byId("evidence-ticker").textContent = text(source.ticker, data.ticker);
+  byId("evidence-network").textContent = text(source.network, data.network) + " · addresses only";
+  byId("evidence-checkpoint").textContent = text(checkpoint.daa_score, "Not supplied");
+  byId("evidence-indexer").textContent = text(checkpoint.indexer, "Not supplied");
+  const muhash = text(checkpoint.muhash, "Not supplied");
+  byId("evidence-muhash").textContent = shortHash(muhash);
+  byId("evidence-muhash").title = muhash;
+}
+
+function progressPercent(claimed, holders) {
+  try {
+    const c = BigInt(text(claimed, "0"));
+    const h = BigInt(text(holders, "0"));
+    if (h <= 0n) return 0;
+    const bounded = c < 0n ? 0n : (c > h ? h : c);
+    return Number((bounded * 10000n) / h) / 100;
+  } catch {
+    return 0;
+  }
+}
+
+function renderMetrics(data) {
+  byId("metric-total").textContent = formatInteger(data.total);
+  byId("metric-remaining").textContent = formatInteger(data.remaining);
+  byId("metric-claims").textContent = formatInteger(data.claimed_count);
+  byId("metric-holders").textContent = formatInteger(data.holder_count);
+  byId("initial-root").textContent = text(data.initial_root);
+  byId("current-root").textContent = text(data.current_root);
+
+  const percent = progressPercent(data.claimed_count, data.holder_count);
+  byId("progress-label").textContent = formatInteger(data.claimed_count) + " / " + formatInteger(data.holder_count);
+  byId("progress-bar").style.width = percent + "%";
+  byId("progress").setAttribute("aria-valuenow", String(Math.round(percent)));
+}
+
+function claimableStatus(value) {
+  const v = text(value, "").toLowerCase();
+  return ["unclaimed", "claimable", "eligible", "ready", "open", "available"]
+    .some(status => v === status || v.startsWith(status + ":"));
+}
+
+function renderSelectedHolder(data) {
+  const preview = byId("claim-preview");
+  clear(preview);
+  const holders = Array.isArray(data.holders) ? data.holders : [];
+  const holder = holders.find(item => text(item.index, "") === text(state.selectedHolderIndex, ""));
+  if (!holder) {
+    preview.className = "claim-preview empty-preview";
+    preview.appendChild(element("p", "claim-explainer", "No holder entry is available in this snapshot."));
+    return;
+  }
+
+  preview.className = "claim-preview";
+  const isClaimable = claimableStatus(holder.status);
+  const body = element("div", "claim-preview-body");
+  body.appendChild(element("span", "label", "Leaf " + text(holder.index, "?") + " · " + (isClaimable ? "available locally" : "claimed locally")));
+  body.appendChild(element("code", "claim-wallet", holder.address));
+  body.appendChild(element("strong", "claim-balance", formatInteger(holder.amount) + " " + text(data.ticker, "units")));
+  body.appendChild(element(
+    "p",
+    "claim-explainer",
+    isClaimable
+      ? "The covenant must pay this exact address and amount, then replace this entitlement with a claimed tombstone."
+      : "This entitlement has already been retired from the current in-memory root. The original proof cannot be reused."
+  ));
+
+  const action = element("div", "claim-action");
+  const button = element("button", "button", isClaimable ? "Run local claim" : "Claimed locally");
+  button.type = "button";
+  button.dataset.claimIndex = text(holder.index, "");
+  button.dataset.claimable = String(isClaimable);
+  button.disabled = state.busy || !isClaimable;
+  button.addEventListener("click", () => claim(holder.index));
+  action.appendChild(button);
+  action.appendChild(element("span", "claim-action-note", "No seed phrase · no RPC · no broadcast"));
+
+  preview.appendChild(body);
+  preview.appendChild(action);
+}
+
+function renderClaimDemo(data) {
+  const select = byId("holder-select");
+  const holders = Array.isArray(data.holders) ? data.holders : [];
+  const previous = text(state.selectedHolderIndex, "");
+  clear(select);
+  if (!holders.length) {
+    const option = element("option", "", "No snapshot entries");
+    option.value = "";
+    select.appendChild(option);
+    state.selectedHolderIndex = null;
+    renderSelectedHolder(data);
+    return;
+  }
+
+  for (const holder of holders) {
+    const isClaimable = claimableStatus(holder.status);
+    const option = element(
+      "option",
+      "",
+      "Leaf " + text(holder.index, "?") + " · " + formatInteger(holder.amount) + " " + text(data.ticker, "units") + " · " + (isClaimable ? "available" : "claimed")
+    );
+    option.value = text(holder.index, "");
+    select.appendChild(option);
+  }
+
+  const previousExists = holders.some(holder => text(holder.index, "") === previous);
+  const fallback = holders.find(holder => claimableStatus(holder.status)) || holders[0];
+  state.selectedHolderIndex = previousExists ? previous : text(fallback.index, "");
+  select.value = text(state.selectedHolderIndex, "");
+  renderSelectedHolder(data);
+}
+
+function renderHolders(data) {
+  const list = byId("holder-list");
+  clear(list);
+  const holders = Array.isArray(data.holders) ? data.holders : [];
+  if (!holders.length) {
+    list.appendChild(element("li", "empty", "No holders are present in the committed snapshot."));
+    return;
+  }
+
+  for (const holder of holders) {
+    const isClaimable = claimableStatus(holder.status);
+    const item = element("li", "holder" + (isClaimable ? "" : " claimed"));
+    const body = element("div", "holder-body");
+    body.appendChild(element("div", "holder-index", "Leaf " + text(holder.index, "?")));
+    body.appendChild(element("code", "address", holder.address));
+    const meta = element("div", "holder-meta");
+    meta.appendChild(element("span", "amount", formatInteger(holder.amount) + " " + text(data.ticker, "units")));
+    meta.appendChild(element("span", "scheme", text(holder.owner_scheme, "unknown owner")));
+    body.appendChild(meta);
+
+    const action = element("div", "holder-action");
+    const statusValue = text(holder.status, "unknown").toLowerCase();
+    const statusKind = isClaimable ? "open" : (statusValue === "claimed" ? "claimed" : "closed");
+    action.appendChild(element("span", "status-pill " + statusKind, isClaimable ? "Available locally" : "Claimed locally"));
+    const button = element("button", "button small", isClaimable ? "Run local claim" : "Claimed locally");
+    button.type = "button";
+    button.dataset.claimIndex = text(holder.index, "");
+    button.dataset.claimable = String(isClaimable);
+    button.disabled = state.busy || !isClaimable;
+    button.setAttribute("aria-label", "Claim snapshot leaf " + text(holder.index, "") + " for " + text(holder.address, "holder"));
+    button.addEventListener("click", () => claim(holder.index));
+    action.appendChild(button);
+
+    item.appendChild(body);
+    item.appendChild(action);
+    list.appendChild(item);
+  }
+}
+
+function renderEvents(data) {
+  const list = byId("event-list");
+  clear(list);
+  const events = Array.isArray(data.events) ? data.events : [];
+  if (!events.length) {
+    list.appendChild(element("li", "empty", "No local transitions have executed yet."));
+    return;
+  }
+
+  events.forEach((event, index) => {
+    const item = element("li", "event");
+    item.appendChild(element("span", "event-dot"));
+    const body = element("div", "event-body");
+    body.appendChild(element("h3", "event-title", text(event.title, text(event.kind, "Event"))));
+    const isClaim = text(event.kind, "").toLowerCase() === "claim";
+    body.appendChild(element(
+      "p",
+      "event-detail",
+      isClaim
+        ? "The entitlement matched the previous root, the exact payout was forced, the leaf was retired, and the successor root passed the local engine."
+        : "The candidate snapshot was canonicalized and the local token genesis, controller genesis, and full-supply reserve handoff passed."
+    ));
+    const technical = element("details", "receipt-details");
+    technical.appendChild(element("summary", "", "Technical receipt"));
+    technical.appendChild(element("p", "event-detail", event.detail));
+    if (event.root_before || event.root_after) {
+      const roots = element("div", "event-roots");
+      if (event.root_before) roots.appendChild(element("code", "event-root", "before  " + text(event.root_before)));
+      if (event.root_after) roots.appendChild(element("code", "event-root", "after   " + text(event.root_after)));
+      technical.appendChild(roots);
+    }
+    body.appendChild(technical);
+    item.appendChild(body);
+    const units = event.script_units === null || event.script_units === undefined
+      ? "event " + String(index + 1)
+      : formatInteger(event.script_units) + " units";
+    item.appendChild(element("span", "event-units", units));
+    list.appendChild(item);
+  });
+}
+
+function renderFacts(id, items, mark) {
+  const list = byId(id);
+  clear(list);
+  const facts = Array.isArray(items) ? items : [];
+  if (!facts.length) {
+    list.appendChild(element("li", "fact", "No statements supplied by the engine."));
+    return;
+  }
+  for (const value of facts) {
+    const item = element("li", "fact");
+    item.appendChild(element("span", "fact-mark", mark));
+    item.appendChild(element("span", "", value));
+    list.appendChild(item);
+  }
+}
+
+function renderTn10(data) {
+  const live = data.tn10 && typeof data.tn10 === "object" ? data.tn10 : {};
+  const receipts = Array.isArray(live.receipts) ? live.receipts : [];
+  const confirmed = Math.max(0, Math.min(5, Number(live.confirmed) || 0));
+  const complete = live.complete === true && confirmed === 5;
+  const progress = byId("tn10-progress");
+  progress.textContent = confirmed + " / 5 TN10 confirmed";
+  progress.className = "evidence-status " + (complete ? "proven" : "missing");
+  const stripStat = byId("proof-tn10");
+  if (stripStat) stripStat.textContent = confirmed + " / 5";
+
+  const evidence = byId("tn10-evidence-status");
+  evidence.textContent = complete ? "5 confirmed · Kascov indexed" : (confirmed ? confirmed + " / 5 confirmed" : "Not tested");
+  evidence.className = "evidence-status " + (complete ? "proven" : "missing");
+
+  const items = Array.from(byId("tn10-chain").children);
+  for (const item of items) {
+    item.classList.remove("confirmed");
+    for (const link of item.querySelectorAll(".tn10-link")) link.remove();
+  }
+  for (const receipt of receipts) {
+    const stage = Number(receipt.stage);
+    const txid = text(receipt.transaction_id, "");
+    if (!Number.isInteger(stage) || stage < 1 || stage > 5 || !/^[0-9a-f]{64}$/i.test(txid)) continue;
+    const item = items[stage - 1];
+    if (!item) continue;
+    item.classList.add("confirmed");
+    const link = element("a", "tn10-link", shortHash(txid) + " · DAA " + text(receipt.accepting_daa));
+    const kascov = text(receipt.kascov, "");
+    link.href = /^https:\/\/kascov\.io\//.test(kascov)
+      ? kascov
+      : "https://kascov.io/data/testnet-10/tx/" + txid;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    item.appendChild(link);
+  }
+
+  if (complete) {
+    byId("tn10-kicker").textContent = live.archived ? "Archived TN10 run · " + text(live.recorded_on) : "Local TN10 receipt ledger";
+    byId("tn10-title").textContent = "Five real TN10 transactions, confirmed and public";
+    byId("tn10-copy").textContent = "The recorded one-holder synthetic run covers token genesis, controller genesis, reserve handoff, Merkle claim, and a recipient spend. Its 30-DAA observation margin is not protocol finality. This page displays saved receipts; it does not contact a node to reverify inclusion.";
+    byId("safety-title").textContent = "LOCAL SIMULATOR + READ-ONLY TN10 RECEIPTS";
+    byId("safety-copy").textContent = "Buttons run only the local fixture engine. The TN10 section displays " + (live.archived ? "the bundled historical record" : "a key-free projection of your local ledger") + "; this browser has no signing or broadcast route.";
+    byId("mode-chip").textContent = "Local lab · TN10 receipts";
+  } else {
+    byId("tn10-kicker").textContent = "Next real milestone";
+    byId("tn10-title").textContent = "Complete the five-stage TN10 test";
+    byId("tn10-copy").textContent = "All five transaction shapes already pass the local Kaspa engine. The smallest honest network proof is this complete public chain of custody.";
+    byId("safety-title").textContent = "LOCAL SIMULATION / NO TN10 CONNECTION";
+    byId("safety-copy").textContent = "Real covenant scripts run against fixture transactions in memory. No wallet, node, mempool, DAG, broadcast, or token value is involved.";
+  }
+}
+
+function render(data, syncEditor = true) {
+  state.data = data || {};
+  const mode = text(state.data.mode, "local engine");
+  byId("mode-chip").textContent = mode;
+  byId("footer-spec").textContent = "Spec pin " + text(state.data.spec_pin);
+  if (syncEditor) byId("source-json").value = jsonSource(state.data.source_json);
+  renderModel(state.data);
+  renderEvidence(state.data);
+  renderIdentity(state.data);
+  renderMetrics(state.data);
+  renderClaimDemo(state.data);
+  renderHolders(state.data);
+  renderEvents(state.data);
+  renderFacts("guarantee-list", state.data.guarantees, "✓");
+  renderFacts("limit-list", state.data.limits, "—");
+  renderTn10(state.data);
+}
+
+async function responseError(response) {
+  const body = await response.text();
+  if (!body) return response.status + " " + response.statusText;
+  try {
+    const parsed = JSON.parse(body);
+    return text(parsed.error || parsed.message, body);
+  } catch {
+    return body;
+  }
+}
+
+async function loadState(options = {}) {
+  const syncEditor = options.syncEditor !== false;
+  setConnection("", "Reading local engine state");
+  const response = await fetch("/api/state", { headers: { "Accept": "application/json" }, cache: "no-store" });
+  if (!response.ok) {
+    const error = new Error(await responseError(response));
+    error.serverResponded = true;
+    throw error;
+  }
+  const data = await response.json();
+  render(data, syncEditor);
+  setConnection("ready", data?.tn10?.complete ? "Local engine · 5 recorded TN10 receipts" : "Local engine connected");
+  return data;
+}
+
+async function post(path, body) {
+  // Custom header makes browser cross-origin form posts preflight and fail;
+  // the localhost server rejects mutations without it.
+  const options = { method: "POST", headers: { "Accept": "application/json", "X-Kasmelt-Lab": "1" } };
+  if (body !== undefined) {
+    options.headers["Content-Type"] = "application/json";
+    options.body = body;
+  }
+  const response = await fetch(path, options);
+  if (!response.ok) {
+    const error = new Error(await responseError(response));
+    error.serverResponded = true;
+    throw error;
+  }
+}
+
+// A rejected action is not a dead engine: when the server answered (an invalid
+// snapshot, a replayed claim), resync state and keep the connection honest.
+async function recoverConnection(error) {
+  if (error && error.serverResponded) {
+    await loadState({ syncEditor: false }).catch(() => setConnection("error", "Local engine unavailable"));
+  } else {
+    setConnection("error", "Local engine unavailable");
+  }
+}
+
+async function commitSnapshot(event) {
+  event.preventDefault();
+  if (state.busy) return;
+  const source = byId("source-json").value.trim();
+  try {
+    JSON.parse(source);
+  } catch (error) {
+    announce("Snapshot JSON is invalid: " + error.message, "error");
+    byId("source-json").focus();
+    return;
+  }
+
+  setBusy(true);
+  announce("Rebuilding the Merkle commitment…");
+  try {
+    await post("/api/snapshot", source);
+    await loadState();
+    announce("Snapshot accepted as input. Local commitment and setup passed.", "success");
+  } catch (error) {
+    await recoverConnection(error);
+    announce(error.message, "error");
+  } finally {
+    setBusy(false);
+  }
+}
+
+async function claim(index) {
+  if (state.busy) return;
+  setBusy(true);
+  announceClaim("Proving leaf " + text(index, "?") + " against the current in-memory root…");
+  try {
+    await post("/api/claim/" + encodeURIComponent(text(index, "")));
+    await loadState();
+    announceClaim("Claim passed locally. Exact payout enforced; leaf retired; root advanced.", "success");
+  } catch (error) {
+    await recoverConnection(error);
+    announce(error.message, "error");
+    announceClaim(error.message, "error");
+  } finally {
+    setBusy(false);
+  }
+}
+
+async function resetLab() {
+  if (state.busy) return;
+  setBusy(true);
+  announce("Resetting the local claim state…");
+  try {
+    await post("/api/reset");
+    await loadState();
+    announce("Sample restored to its original unclaimed state.", "success");
+    announceClaim("Sample restored. Pick a wallet to run another local claim.", "success");
+  } catch (error) {
+    await recoverConnection(error);
+    announce(error.message, "error");
+  } finally {
+    setBusy(false);
+  }
+}
+
+byId("snapshot-form").addEventListener("submit", commitSnapshot);
+byId("reset-button").addEventListener("click", resetLab);
+byId("holder-select").addEventListener("change", event => {
+  state.selectedHolderIndex = event.target.value;
+  if (state.data) renderSelectedHolder(state.data);
+  announceClaim("");
+});
+
+setBusy(true);
+loadState()
+  .catch(error => {
+    setConnection("error", "Local engine unavailable");
+    announce(error.message, "error");
+    byId("source-json").value = "{}";
+  })
+  .finally(() => setBusy(false));
+</script>
+</body>
+</html>

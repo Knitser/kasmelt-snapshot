@@ -1,0 +1,15 @@
+[package]
+name = "kasmelt-compiler"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "snapshot-silverc"
+path = "src/main.rs"
+
+[dependencies]
+silverscript-lang = { git = "https://github.com/kaspanet/silverscript", rev = "d25bd3427a093c17327ca3d6b9e1aa5f7688c863" }
+debugger-session = { git = "https://github.com/kaspanet/silverscript", rev = "d25bd3427a093c17327ca3d6b9e1aa5f7688c863" }
+hex.workspace = true

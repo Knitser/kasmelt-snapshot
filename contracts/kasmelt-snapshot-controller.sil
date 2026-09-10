@@ -1,0 +1,149 @@
+// Snapshot Claim Lab controller.
+//
+// The singleton state is the root of the *remaining* entitlement tree.  A
+// successful full claim replaces one entitlement leaf with its deterministic
+// tombstone and returns the resulting root.  Because the controller must
+// recreate exactly one authenticated successor, a stale or replayed proof
+// cannot pass against the next state.
+
+contract SnapshotController(
+    byte[32] initRemainingRoot,
+    byte[32] tokenCovid,
+    byte[32] manifestCommitment,
+    byte[32] snapshotContext,
+    int treeDepth,
+    int holderCount,
+    int tokenTemplatePrefixLen,
+    int tokenTemplateSuffixLen,
+    byte[32] tokenTemplateHash,
+    byte[] tokenTemplatePrefix,
+    byte[] tokenTemplateSuffix,
+    int reserveCellKas,
+    int recipientCellKas
+) {
+    byte[32] remaining_root = initRemainingRoot;
+
+    byte constant OWNER_P2PK_SCHNORR = 0x00;
+    byte constant OWNER_P2SH = 0x03;
+    byte constant OWNER_COVENANT_ID = 0x04;
+    byte constant BORROW_DISABLED = 0x00;
+
+    struct TokenState {
+        int amount;
+        byte[32] owner;
+        byte owner_scheme;
+        byte borrow_scheme;
+        byte[32] borrow_guard;
+        byte[32] extension_commitment;
+    }
+
+    function entitlementLeaf(int index, byte ownerScheme, byte[32] owner, int claimAmount) : byte[32] {
+        bytes body = bytes(0x00)
+                   + snapshotContext
+                   + OpNum2Bin(index, 8)
+                   + bytes(ownerScheme)
+                   + owner
+                   + OpNum2Bin(claimAmount, 8);
+        return blake2b(body);
+    }
+
+    function claimedLeaf(int index) : byte[32] {
+        return blake2b(bytes(0x02) + snapshotContext + OpNum2Bin(index, 8));
+    }
+
+    function fold(byte[32] start, byte[] siblings, int index) : byte[32] {
+        byte[32] node = start;
+        int cursor = index;
+        for(level, 0, treeDepth, treeDepth) {
+            byte[32] sibling = byte[32](siblings.slice(level * 32, (level + 1) * 32));
+            if(cursor % 2 == 0) {
+                node = blake2b(bytes(0x01) + node + sibling);
+            } else {
+                node = blake2b(bytes(0x01) + sibling + node);
+            }
+            cursor = cursor / 2;
+        }
+        return node;
+    }
+
+    function checkTokenShape(TokenState state) {
+        require(state.amount >= 0);
+        require(state.borrow_scheme == BORROW_DISABLED);
+        require(state.borrow_guard == 0x0000000000000000000000000000000000000000000000000000000000000000);
+        require(state.extension_commitment == manifestCommitment);
+    }
+
+    #[covenant.singleton(mode = transition)]
+    function claim(
+        State prev,
+        int index,
+        byte ownerScheme,
+        byte[32] owner,
+        int claimAmount,
+        byte[] siblings,
+        TokenState reserveNext,
+        TokenState recipient
+    ) : State {
+        require(index >= 0);
+        require(index < holderCount);
+        require(claimAmount > 0);
+        require(siblings.length == treeDepth * 32);
+        require(ownerScheme == OWNER_P2PK_SCHNORR || ownerScheme == OWNER_P2SH);
+
+        byte[32] oldLeaf = entitlementLeaf(index, ownerScheme, owner, claimAmount);
+        require(fold(oldLeaf, siblings, index) == prev.remaining_root);
+        byte[32] nextRoot = fold(claimedLeaf(index), siblings, index);
+
+        require(OpCovInputCount(tokenCovid) == 1);
+        require(OpCovOutputCount(tokenCovid) == 2);
+        int tokenInput = OpCovInputIdx(tokenCovid, 0);
+        TokenState reservePrev = readInputStateWithTemplate(
+            tokenInput,
+            tokenTemplatePrefixLen,
+            tokenTemplateSuffixLen,
+            tokenTemplateHash
+        );
+
+        byte[32] controllerId = OpInputCovenantId(this.activeInputIndex);
+        checkTokenShape(reservePrev);
+        require(reservePrev.owner == controllerId);
+        require(reservePrev.owner_scheme == OWNER_COVENANT_ID);
+        require(reservePrev.amount >= claimAmount);
+
+        checkTokenShape(reserveNext);
+        require(reserveNext.amount == reservePrev.amount - claimAmount);
+        require(reserveNext.owner == controllerId);
+        require(reserveNext.owner_scheme == OWNER_COVENANT_ID);
+
+        checkTokenShape(recipient);
+        require(recipient.amount == claimAmount);
+        require(recipient.owner == owner);
+        require(recipient.owner_scheme == ownerScheme);
+
+        int reserveOutput = OpCovOutputIdx(tokenCovid, 0);
+        int recipientOutput = OpCovOutputIdx(tokenCovid, 1);
+        require(tx.outputs[reserveOutput].value == reserveCellKas);
+        require(tx.outputs[recipientOutput].value >= recipientCellKas);
+        validateOutputStateWithTemplate(
+            reserveOutput,
+            reserveNext,
+            tokenTemplatePrefix,
+            tokenTemplateSuffix,
+            tokenTemplateHash
+        );
+        validateOutputStateWithTemplate(
+            recipientOutput,
+            recipient,
+            tokenTemplatePrefix,
+            tokenTemplateSuffix,
+            tokenTemplateHash
+        );
+
+        // Preserve the controller's native KAS value exactly so one claimant
+        // cannot make the next singleton output storage-mass-invalid.
+        int successor = OpAuthOutputIdx(this.activeInputIndex, 0);
+        require(tx.outputs[successor].value == tx.inputs[this.activeInputIndex].value);
+
+        return { remaining_root: nextRoot };
+    }
+}

@@ -1,0 +1,78 @@
+// Snapshot Claim Lab token adapter.
+//
+// This contract deliberately uses the six-field state and owner-scheme bytes
+// in KCC-0020 Draft e31a5a8.  The local SilverScript compiler does not yet
+// emit the draft's KCC-1 BLAKE3 dispatch ABI, so this is a semantic adapter for
+// exercising the reserve-split transition with the real Kaspa script engine;
+// it is not advertised as a production-conforming KCC-20 artifact.
+
+contract SnapshotToken(
+    int initAmount,
+    byte[32] initOwner,
+    byte initOwnerScheme,
+    byte initBorrowScheme,
+    byte[32] initBorrowGuard,
+    byte[32] initExtensionCommitment,
+    int maxCovIns,
+    int maxCovOuts
+) {
+    // KCC-0020 state order, pinned to kaspanet/kccs e31a5a8.
+    int amount = initAmount;
+    byte[32] owner = initOwner;
+    byte owner_scheme = initOwnerScheme;
+    byte borrow_scheme = initBorrowScheme;
+    byte[32] borrow_guard = initBorrowGuard;
+    byte[32] extension_commitment = initExtensionCommitment;
+
+    byte constant OWNER_P2PK_SCHNORR = 0x00;
+    byte constant OWNER_P2SH = 0x03;
+    byte constant OWNER_COVENANT_ID = 0x04;
+    byte constant BORROW_DISABLED = 0x00;
+
+    function authorize(State[] prev, sig[] signatures, byte[] authorities) {
+        for(i, 0, prev.length, maxCovIns) {
+            require(prev[i].amount >= 0);
+            require(prev[i].borrow_scheme == BORROW_DISABLED);
+            require(prev[i].borrow_guard == 0x0000000000000000000000000000000000000000000000000000000000000000);
+
+            if(prev[i].owner_scheme == OWNER_P2PK_SCHNORR) {
+                require(checkSig(signatures[i], prev[i].owner));
+            } else if(prev[i].owner_scheme == OWNER_P2SH) {
+                require(tx.inputs[authorities[i]].scriptPubKey == new ScriptPubKeyP2SH(prev[i].owner));
+            } else if(prev[i].owner_scheme == OWNER_COVENANT_ID) {
+                require(OpInputCovenantId(authorities[i]) == prev[i].owner);
+            } else {
+                require(false);
+            }
+        }
+    }
+
+    function conserve(State[] prev, State[] next) {
+        int totalIn = 0;
+        for(i, 0, prev.length, maxCovIns) {
+            require(prev[i].extension_commitment == extension_commitment);
+            totalIn = totalIn + prev[i].amount;
+        }
+
+        int totalOut = 0;
+        for(i, 0, next.length, maxCovOuts) {
+            require(next[i].amount >= 0);
+            require(next[i].borrow_scheme == BORROW_DISABLED);
+            require(next[i].borrow_guard == 0x0000000000000000000000000000000000000000000000000000000000000000);
+            require(next[i].extension_commitment == extension_commitment);
+            require(
+                next[i].owner_scheme == OWNER_P2PK_SCHNORR
+                || next[i].owner_scheme == OWNER_P2SH
+                || next[i].owner_scheme == OWNER_COVENANT_ID
+            );
+            totalOut = totalOut + next[i].amount;
+        }
+        require(totalIn == totalOut);
+    }
+
+    #[covenant(binding = cov, from = maxCovIns, to = maxCovOuts)]
+    function transfer(State[] prev, State[] next, sig[] signatures, byte[] authorities) {
+        authorize(prev, signatures, authorities);
+        conserve(prev, next);
+    }
+}

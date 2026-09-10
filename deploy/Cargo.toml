@@ -1,0 +1,21 @@
+[package]
+name = "kasmelt-deploy"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+kasmelt-harness = { path = "../harness" }
+kaspa-consensus-core.workspace = true
+kaspa-addresses.workspace = true
+kaspa-txscript.workspace = true
+kaspa-rpc-core.workspace = true
+kaspa-wrpc-client.workspace = true
+secp256k1.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+hex.workspace = true
+anyhow.workspace = true
+tokio.workspace = true
+sha2.workspace = true

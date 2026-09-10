@@ -1,0 +1,16 @@
+{
+  "network": "testnet-10",
+  "ticker": "TN10POC",
+  "krc_deploy_id": "2cc1c0b1bd13bd36c30bdab7645902620bd870095758e7dae9e1f6950c1ddd4f",
+  "checkpoint": {
+    "daa_score": "553950758",
+    "muhash": "7502a65006d7d9d8f423d5bc573522a9c9e01efaea70358bc6c2fc39534f93c0",
+    "indexer": "synthetic-tn10-mechanics-only/no-krc-indexer"
+  },
+  "holders": [
+    {
+      "address": "kaspatest:qpssh6nkmd6s2xqadh5squ2gezf27ysc8sxx5vyy4sgy7d6agw6vysayrsewf",
+      "amount": "1000000"
+    }
+  ]
+}
